@@ -1,0 +1,49 @@
+# Define namespace for PySpark
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pyspark
+
+---
+# ensure that only pyspark resources are authenticated for the binding role below, this is for pysparks driver
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ServiceAccount
+metadata:
+  name: pyspark-service-account
+  namespace: pyspark
+  
+---
+# edit built-in role allows pyspark's main driver to create, watch, and delete executor pods itself
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: spark-rbac-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edit
+subjects:
+- kind: ServiceAccount
+  name: pyspark-service-account 
+  namespace: pyspark
+
+---
+# Deployment for Spark Driver
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployment-for-pyspark
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pyspark-pod
+  template:
+    metadata:
+      labels:
+        app: pyspark-pod
+    spec:
+      serviceAccountName: pyspark-service-account
+      containers:
+      - name: pyspark-container
+        image: vulkan-benchmarks-spark-image
