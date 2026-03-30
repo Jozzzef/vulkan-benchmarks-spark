@@ -27,7 +27,7 @@ RUN spark-submit --version
 #copy in the executable binaries you wish to use for the testing
 RUN mkdir -p /working_directory/binaries
 WORKDIR /working_directory
-COPY ../binaries ./binaries
+COPY ./binaries ./binaries
 # this is the directory your log files must be placed in: ../logs from the binary's point of view
 RUN mkdir ./logs
 # copy the binaries to run but do not run untill the actual deployments from pyspark are made

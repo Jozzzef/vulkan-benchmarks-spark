@@ -43,9 +43,8 @@ else
     } > .env
 fi
 
-# docker build -t <your-pyspark-image> .
 # kubectl apply -f k8s-config.yaml
-# kubectl apply -f k8s-config.yaml
+
 # 
 # # Submit the PySpark application
 # pyspark --master k8s://https://<api-server>:6443 \
