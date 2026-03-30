@@ -32,3 +32,5 @@ COPY ./binaries ./binaries
 RUN mkdir ./logs
 # copy the binaries to run but do not run untill the actual deployments from pyspark are made
 COPY ./executor_run_binaries.sh ./executor_run_binaries.sh
+RUN chmod +x ./executor_run_binaries.sh
+ENTRYPOINT ["/bin/bash", "./executor_run_binaries.sh"]

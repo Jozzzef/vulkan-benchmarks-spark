@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# this will be set after starting kubernetes
+declare -g APISERVER="tbd"
+
 # check if docker is installed for building the image
 if command -v docker &> /dev/null; then
     echo "docker installed: $(docker --version)"
@@ -18,6 +21,20 @@ fi
 #build the image to use in our kubernetes deployment
 sudo docker build -t vulkan-benchmarks-spark-image -f ./config/Dockerfile ./config
 
+# Install kubectl if not already
+if command -v minikube &> /dev/null; then
+   echo "kubectl installed: $(kubectl version --client)"
+else 
+    echo "Installing kubectl..."
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"
+    echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check
+    sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+    rm ./kubectl ./kubectl.sha256
+    kubectl version --client
+fi
+
+# Debug mode = using minicube for testing
 if [[ "$1" = "debug" ]]; then
     # set to debug mode for local testing
     echo "Debug mode enabled"
@@ -34,29 +51,37 @@ if [[ "$1" = "debug" ]]; then
        curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-latest.x86_64.rpm
        sudo rpm -Uvh minikube-latest.x86_64.rpm
        rm minikube-latest.x86_64.rpm 
+       sudo usermod -aG docker $USER && newgrp docker
        echo "Finished Installation: $(minikube version)"
     fi
 
+    minikube start --driver=docker
+    kubectl apply -f ./config/k8s-config.yaml
+    kubectl get crd --all-namespaces
+    kubectl api-versions | grep rbac
+    kubectl get pods -n kube-system | grep 'kube-'
+    kubectl cluster-info
+    APISERVER=$(kubectl cluster-info | grep 'control plane' | sed -E 's/.*https:\/\/(.*)/\1/')
 else 
     {
         echo "DEBUGMODE=False"
     } > .env
 fi
 
-# kubectl apply -f k8s-config.yaml
+# run binaries on the master machine first
+pwd
+mkdir -p ./config/binaries/logs/
+cd ./config/binaries/
+for f in ./*; do 
+    chmod +x $f && ./$f & 
+done
+cd ../..
 
-# 
-# # Submit the PySpark application
-# pyspark --master k8s://https://<api-server>:6443 \
-#   --deploy-mode cluster \
-#   --name pyspark-app \
-#   --conf spark.kubernetes.namespace=pyspark \
-#   --conf spark.executor.instances=2 \
-#   --conf spark.executor.memory=1g \
-#   --py-files main.py \
-#   --conf spark.driver.bindAddress="0.0.0.0" \
-#   --jars /path/to/jars/*.jar \
-#   --files config.yaml \
-#   main.py
-# 
-# fi
+python3 ./python/main.py $APISERVER
+
+if ! minikube status | grep -q "Running"; then
+    echo "Minikube is not running"
+    #place the production command here
+else
+    minikube stop
+fi
